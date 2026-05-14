@@ -1,0 +1,59 @@
+workflows:
+  android-release:
+    name: ScienceWiz AAB Build
+    max_build_duration: 60
+    environment:
+      flutter: 3.19.0
+      java: 17
+
+    scripts:
+      - name: Setup and Build AAB
+        script: |
+          # Debug: show full directory structure
+          echo "=== CM_BUILD_DIR contents ==="
+          ls -la $CM_BUILD_DIR
+          echo "=== Looking for pubspec.yaml ==="
+          find $CM_BUILD_DIR -name "pubspec.yaml" 2>/dev/null
+
+          # Find pubspec.yaml
+          PUBSPEC=$(find $CM_BUILD_DIR -name "pubspec.yaml" | grep -v ".dart_tool" | head -1)
+          PROJECT_ROOT=$(dirname $PUBSPEC)
+          echo "=== Project root: $PROJECT_ROOT ==="
+          ls -la $PROJECT_ROOT
+
+          # Create local.properties
+          mkdir -p "$PROJECT_ROOT/android"
+          printf "flutter.sdk=%s\nflutter.versionName=1.0.0\nflutter.versionCode=1\n" "$FLUTTER_ROOT" > "$PROJECT_ROOT/android/local.properties"
+          echo "=== local.properties ==="
+          cat "$PROJECT_ROOT/android/local.properties"
+
+          # Get packages
+          cd "$PROJECT_ROOT"
+          flutter pub get
+
+          # Build AAB
+          flutter build appbundle --release --build-name=1.0.0 --build-number=1
+
+          # Find and copy AAB
+          echo "=== Searching for AAB ==="
+          find "$PROJECT_ROOT" -name "*.aab" 2>/dev/null
+          AAB=$(find "$PROJECT_ROOT" -name "*.aab" | head -1)
+          if [ -n "$AAB" ]; then
+            cp "$AAB" "$CM_EXPORT_DIR/ScienceWiz.aab"
+            echo "=== AAB copied successfully ==="
+            ls -lh "$CM_EXPORT_DIR/"
+          else
+            echo "=== ERROR: No AAB found ==="
+            find "$PROJECT_ROOT/build" -type f 2>/dev/null
+          fi
+
+    artifacts:
+      - $CM_EXPORT_DIR/ScienceWiz.aab
+
+    publishing:
+      email:
+        recipients:
+          - your@email.com
+        notify:
+          success: true
+          failure: true
